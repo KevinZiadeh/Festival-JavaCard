@@ -14,11 +14,14 @@ public class SecWalletApp extends Applet {
     /* INSTRUCTIONS */
     public static final byte INS_GET_INFO = (byte) 0x00;
     public static final byte INS_VERIFY_PIN = (byte) 0x01;
+    public static final byte INS_DEBIT = (byte)0x02;
+    public static final byte INS_CREDIT = (byte)0x03;
     public static final byte INS_GET_BALANCE = (byte) 0x10;
+    	
 
     /* ATTRIBUTES */
     OwnerPIN pin;
-    short debit_amount;
+    short card_amount;
     private static byte[] card_user_name;
     private static byte[] num_participant;
 
@@ -29,6 +32,7 @@ public class SecWalletApp extends Applet {
     /* BALANCE CONFIG */
     public static final short MAX_BALANCE = 1000;
     public static final short MAX_INPUT_AMOUNT = 500;
+    public static final short MAX_DEBIT_AMOUNT = 200;
 
     
     /* SW CODES */
@@ -57,7 +61,7 @@ public class SecWalletApp extends Applet {
         num_participant = new byte[(short) 16];
         Util.arrayCopy(bArray, (short) (bOffset + 5 + 32), num_participant, (short) 0, (byte) num_participant.length);
         
-        debit_amount = Util.getShort(bArray, (short) (bOffset + 5 + 32 + 16));
+        card_amount = Util.getShort(bArray, (short) (bOffset + 5 + 32 + 16));
     }
 
     public static void install(byte bArray[], short bOffset, byte bLength) throws ISOException {
@@ -99,6 +103,14 @@ public class SecWalletApp extends Applet {
             case INS_VERIFY_PIN:
             	verifyPin(apdu);
             	break;
+            case INS_DEBIT:
+            	if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
+            	debit(apdu);
+            	break;
+            case INS_CREDIT:
+            	if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
+            	credit(apdu);
+            	break;
             case INS_GET_BALANCE:
                 if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
                 getBalance(apdu);
@@ -132,7 +144,7 @@ public class SecWalletApp extends Applet {
     private void getBalance(APDU apdu) {
         byte buffer[] = apdu.getBuffer();
         
-        Util.setShort(buffer, (short) 0, debit_amount);
+        Util.setShort(buffer, (short) 0, card_amount);
         apdu.setOutgoingAndSend((short) 0, (short) 2);
         
         
@@ -158,9 +170,25 @@ public class SecWalletApp extends Applet {
         
         if (input_amount < 0 || input_amount > MAX_INPUT_AMOUNT) ISOException.throwIt(SW_INVALID_INPUT); 
                 
-        if ((short) (debit_amount + input_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
+        if ((short) (card_amount + input_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
         
-        debit_amount = (short) (debit_amount + input_amount);
+        card_amount = (short) (card_amount + input_amount);
     } 
+    
+    private void debit(APDU apdu) {
+        byte[] buf = apdu.getBuffer();
+        byte numBytes = buf[ISO7816.OFFSET_LC];
+        byte read = (byte)apdu.setIncomingAndReceive();
+        
+        if (numBytes < 1 || numBytes > 2 || read < 1 || read > 2) ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+       
+        short debit_amount = Util.getShort(buf, (short) ISO7816.OFFSET_CDATA);
+        
+        if (debit_amount < 0 || debit_amount > MAX_DEBIT_AMOUNT) ISOException.throwIt(SW_INVALID_INPUT); 
+                
+        if ((short) (card_amount + debit_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
+        
+        card_amount = (short) (card_amount + debit_amount);
+    }
 
 }
