@@ -7,6 +7,8 @@ import javacard.framework.ISOException;
 import javacard.framework.Util;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN; // https://docs.oracle.com/javacard/3.0.5/api/javacard/framework/OwnerPIN.html
+import javacard.security.*;
+import javacardx.crypto.*;
 
 public class SecWalletApp extends Applet {
     public static final byte CLA_MONAPPLET = (byte) 0xB0;
@@ -21,6 +23,10 @@ public class SecWalletApp extends Applet {
 
     /* ATTRIBUTES */
     OwnerPIN pin;
+    private Signature signature;
+    private KeyPair keyPair;
+    //private RSAPublicKey publicKey;
+    
     short card_amount;
     private static byte[] card_user_name;
     private static byte[] num_participant;
@@ -55,6 +61,7 @@ public class SecWalletApp extends Applet {
 
         pin.update(bArray, (short)(bOffset + 1), (byte) 0x04);
 
+
         card_user_name = new byte[(short) 32];
         Util.arrayCopy(bArray, (short) (bOffset + 5), card_user_name, (short) 0, (byte) card_user_name.length);
         
@@ -62,6 +69,15 @@ public class SecWalletApp extends Applet {
         Util.arrayCopy(bArray, (short) (bOffset + 5 + 32), num_participant, (short) 0, (byte) num_participant.length);
         
         card_amount = Util.getShort(bArray, (short) (bOffset + 5 + 32 + 16));
+        
+        keyPair = new KeyPair(KeyPair.ALG_RSA, KeyBuilder.LENGTH_RSA_1024);
+        keyPair.genKeyPair();
+        signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
+        
+        //Not too sure how this is gonna work 
+        byte[] publicKey = new byte[128]; // Adjust size as per your key size
+        short publicKeyLength = keyPair.getPublic().getExponent(publicKey, (short) 0);
+        keyPair.getPublic().getModulus(publicKey, (short) publicKeyLength);
     }
 
     public static void install(byte bArray[], short bOffset, byte bLength) throws ISOException {
@@ -173,6 +189,11 @@ public class SecWalletApp extends Applet {
         if ((short) (card_amount + input_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
         
         card_amount = (short) (card_amount + input_amount);
+        
+        //Not too sure we want to do signing when adding money 
+        //also where is the verification of the signature supposed to happen, maybe at the terminal level or vice versa
+        //either terminal(reader or client) signs its transaction and the card verifies the signature before taking money in
+        //or out
     } 
     
     private void debit(APDU apdu) {
@@ -189,6 +210,14 @@ public class SecWalletApp extends Applet {
         if ((short) (card_amount + debit_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
         
         card_amount = (short) (card_amount + debit_amount);
+        
+        signature.init(keyPair.getPrivate(), Signature.MODE_SIGN);
+        short signatureLength = signature.sign(buffer, ISO7816.OFFSET_CDATA, length, buffer, (short) 0);
+        
+        //send the signature back to the terminal 
+        apdu.setOutgoing();
+        apdu.setOutgoingLength(signatureLength);
+        apdu.sendBytesLong(buffer, (short) 0, signatureLength);
     }
 
 }
