@@ -15,6 +15,46 @@ The information saved on the card is the following:
 If the attendee wants to add money to his card, he can go to the add money booth and give the amount of money he wants to add. The booth will then add the money to the card.
 
 
+```
+
++-------------------------------+                                                   
+|                               |  
+|                               |
+|         Welcome Booth         |
+|                               |  
+|    generate_card_setup.py     |  
++-------------------------------+  
+            ▲   | 
+            |   |
+Give Money  |   |
+  and Name (1)  |
+            |   | 
+            |  (2) Gives Card with Money 
+            |   |
+            |   |                        +----------------------+
+            |   ▼      Pay with Card     |  clientSecWallet.py  |     
+              O   -------- (2) --------> |                      |
+             /|\                         |     Ticket Booth     | 
+             / \  <------- (3) --------- |                      |
+              |    Returns Voucher to    |                      |
+              |             Buy Items    +----------------------+
+              | 
+              |
+             (4) Refill Card with Money
+              |
+              |
+              |
+              |
+              ▼
+  +-----------------------+
+  |                       |
+  |                       |
+  |      Money Booth      |
+  |                       |
+  |      add_money.py     |
+  +-----------------------+
+```
+
 ## Requirements
 
 - JavaCard SDK
