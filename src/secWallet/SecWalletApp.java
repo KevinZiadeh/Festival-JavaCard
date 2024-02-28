@@ -78,6 +78,9 @@ public class SecWalletApp extends Applet {
         byte[] publicKey = new byte[128]; // Adjust size as per your key size
         short publicKeyLength = keyPair.getPublic().getExponent(publicKey, (short) 0);
         keyPair.getPublic().getModulus(publicKey, (short) publicKeyLength);
+        
+        //we could do this to send the public key upon inserting the card
+        
     }
 
     public static void install(byte bArray[], short bOffset, byte bLength) throws ISOException {
@@ -212,12 +215,12 @@ public class SecWalletApp extends Applet {
         card_amount = (short) (card_amount + debit_amount);
         
         signature.init(keyPair.getPrivate(), Signature.MODE_SIGN);
-        short signatureLength = signature.sign(buffer, ISO7816.OFFSET_CDATA, length, buffer, (short) 0);
+        short signatureLength = signature.sign(buf, ISO7816.OFFSET_CDATA, length, buf, (short) 0);
         
         //send the signature back to the terminal 
         apdu.setOutgoing();
         apdu.setOutgoingLength(signatureLength);
-        apdu.sendBytesLong(buffer, (short) 0, signatureLength);
+        apdu.sendBytesLong(buf, (short) 0, signatureLength);
     }
 
 }
