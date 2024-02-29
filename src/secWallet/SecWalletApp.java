@@ -16,9 +16,9 @@ public class SecWalletApp extends Applet {
     /* INSTRUCTIONS */
     public static final byte INS_GET_INFO = (byte) 0x00;
     public static final byte INS_VERIFY_PIN = (byte) 0x01;
-    public static final byte INS_DEBIT = (byte)0x02;
-    public static final byte INS_CREDIT = (byte)0x03;
     public static final byte INS_GET_BALANCE = (byte) 0x10;
+    public static final byte INS_CREDIT = (byte)0x20;
+    public static final byte INS_DEBIT = (byte)0x30;
     	
 
     /* ATTRIBUTES */
