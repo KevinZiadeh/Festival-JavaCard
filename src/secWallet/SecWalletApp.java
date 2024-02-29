@@ -1,7 +1,8 @@
 package secWallet;
 
-import java.security.KeyPair;
-import java.security.interfaces.RSAPublicKey;
+//import java.security.KeyPair;
+//import java.security.Signature;
+//import java.security.interfaces.RSAPublicKey;
 
 import javacard.framework.APDU;
 import javacard.framework.Applet; // https://docs.oracle.com/javacard/3.0.5/api/javacard/framework/Applet.html
@@ -33,6 +34,7 @@ public class SecWalletApp extends Applet {
     private KeyPair keyPair;
     private RSAPrivateCrtKey privateKey;
     private RSAPublicKey publicKey;
+    private RSAPublicKey reader_pubKey;
     //private RSAPublicKey publicKey;
     
     short card_amount;
@@ -44,6 +46,8 @@ public class SecWalletApp extends Applet {
     private static byte[] READER_KEY_EXP;
     private static byte[] CARD_KEY_MOD; 
     private static byte[] CARD_KEY_EXP;
+    private static byte[] MSG;
+    private static byte[] SIGNED_MSG;
 
     /* PIN SPECS */
     public static final byte MAX_PIN_SIZE = (byte) 0x04;
@@ -65,8 +69,17 @@ public class SecWalletApp extends Applet {
 
     /* Constructor */
     private SecWalletApp(byte bArray[], short bOffset, byte bLength) {
-        READER_KEY_MOD = new byte[128]; 
+    	SIGNED_MSG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
+    	READER_KEY_MOD = new byte[128]; 
         READER_KEY_EXP = new byte[10];
+        MSG = new byte[256];
+        
+        signature = null;
+        keyPair = null;
+        privateKey = null;
+        publicKey = null;
+        reader_pubKey = null;
+        
     	
     	pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE); // Create User PIN
 
@@ -86,17 +99,6 @@ public class SecWalletApp extends Applet {
         Util.arrayCopy(bArray, (short) (bOffset + 5 + 32), num_participant, (short) 0, (byte) num_participant.length);
         
         card_amount = Util.getShort(bArray, (short) (bOffset + 5 + 32 + 16));
-        
-//        keyPair = new KeyPair(KeyPair.ALG_RSA, KeyBuilder.LENGTH_RSA_1024);
-//        keyPair.genKeyPair();
-//        signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
-//        
-//        //Not too sure how this is gonna work 
-//        byte[] publicKey = new byte[128]; // Adjust size as per your key size
-//        short publicKeyLength = keyPair.getPublic().getExponent(publicKey, (short) 0);
-//        keyPair.getPublic().getModulus(publicKey, (short) publicKeyLength);
-//        
-        //we could do this to send the public key upon inserting the card
         
     }
 
@@ -260,7 +262,7 @@ public class SecWalletApp extends Applet {
     	  short numBytes = (short) buffer[ISO7816.OFFSET_LC];
 
     	  apdu.setIncomingAndReceive();
-    	  Util.arrayCopyNonAtomic(buffer, defISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, numBytes);
+    	  Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, numBytes);
     }
     
     public void generateCardKeys(APDU apdu) {
@@ -293,7 +295,36 @@ public class SecWalletApp extends Applet {
     	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
     	apdu.setOutgoing();
     	apdu.setOutgoingLength(pubKeyExp);
-    	apdu.sendBytesLong(CARD_KEY_EXP,(short)0,pubKeyExp);
-    	
+    	apdu.sendBytesLong(CARD_KEY_EXP,(short)0,pubKeyExp);    	
     }
+    
+    public short signMessage(byte[] message, short msgLen) {
+    	  signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
+    	  signature.init(privateKey, Signature.MODE_SIGN);
+    	  short sigLen = signature.sign(message, (short) 0, (byte) msgLen, SIGNED_MSG, (byte) 0);
+    	  return sigLen;
+    }
+    
+    public boolean verifyMessage(short msgLen) {
+    	signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
+  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
+  	  	boolean verified = signature.verify(SIGNED_MSG, (short) 0 , (byte) msgLen, SIGNED_MSG, (byte) msgLen, (short) 128);
+  	  	return verified;
+    }
+    
+    public void sendSigned(APDU apdu, short msgLen) {
+    	byte[] buffer = apdu.getBuffer();
+    	short sigLen = signMessage(MSG, msgLen);
+    	
+    	//The signed message becomes the actual sent message
+    	Util.arrayCopyNonAtomic(SIGNED_MSG, (short) 0, MSG, msgLen, sigLen);
+    	
+    	//Not too sure about the length here, because it is the length of the response data
+    	apdu.setOutgoing();
+    	//apdu.setOutgoingLength();
+    	//apdu.sendBytesLong(MSG,(short)0,); 
+    }
+    
+    
+    
 }
