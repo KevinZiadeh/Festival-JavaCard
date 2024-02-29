@@ -1,5 +1,8 @@
 package secWallet;
 
+import java.security.KeyPair;
+import java.security.interfaces.RSAPublicKey;
+
 import javacard.framework.APDU;
 import javacard.framework.Applet; // https://docs.oracle.com/javacard/3.0.5/api/javacard/framework/Applet.html
 import javacard.framework.ISO7816;
@@ -19,17 +22,26 @@ public class SecWalletApp extends Applet {
     public static final byte INS_GET_BALANCE = (byte) 0x10;
     public static final byte INS_CREDIT = (byte)0x20;
     public static final byte INS_DEBIT = (byte)0x30;
-    	
+    public static final byte READER_PUBKEY_MOD = (byte)0x50;
+    public static final byte READER_PUBKEY_EXP = (byte)0x51;
 
     /* ATTRIBUTES */
     OwnerPIN pin;
     private Signature signature;
     private KeyPair keyPair;
+    private RSAPrivateCrtKey privateKey;
+    private RSAPublicKey publicKey;
     //private RSAPublicKey publicKey;
     
     short card_amount;
     private static byte[] card_user_name;
     private static byte[] num_participant;
+    
+    /* SIGNATURE ATTRIBUTES */
+    private static byte[] READER_KEY_MOD;
+    private static byte[] READER_KEY_EXP;
+    private static byte[] CARD_KEY_MOD; 
+    private static byte[] CARD_KEY_EXP;
 
     /* PIN SPECS */
     public static final byte MAX_PIN_SIZE = (byte) 0x04;
@@ -51,7 +63,10 @@ public class SecWalletApp extends Applet {
 
     /* Constructor */
     private SecWalletApp(byte bArray[], short bOffset, byte bLength) {
-        pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE); // Create User PIN
+        READER_KEY_MOD = new byte[128]; 
+        READER_KEY_EXP = new byte[10];
+    	
+    	pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE); // Create User PIN
 
         byte iLen = bArray[bOffset]; // AID length
         bOffset = (short)(bOffset + iLen + 1);
@@ -70,15 +85,15 @@ public class SecWalletApp extends Applet {
         
         card_amount = Util.getShort(bArray, (short) (bOffset + 5 + 32 + 16));
         
-        keyPair = new KeyPair(KeyPair.ALG_RSA, KeyBuilder.LENGTH_RSA_1024);
-        keyPair.genKeyPair();
-        signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
-        
-        //Not too sure how this is gonna work 
-        byte[] publicKey = new byte[128]; // Adjust size as per your key size
-        short publicKeyLength = keyPair.getPublic().getExponent(publicKey, (short) 0);
-        keyPair.getPublic().getModulus(publicKey, (short) publicKeyLength);
-        
+//        keyPair = new KeyPair(KeyPair.ALG_RSA, KeyBuilder.LENGTH_RSA_1024);
+//        keyPair.genKeyPair();
+//        signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
+//        
+//        //Not too sure how this is gonna work 
+//        byte[] publicKey = new byte[128]; // Adjust size as per your key size
+//        short publicKeyLength = keyPair.getPublic().getExponent(publicKey, (short) 0);
+//        keyPair.getPublic().getModulus(publicKey, (short) publicKeyLength);
+//        
         //we could do this to send the public key upon inserting the card
         
     }
@@ -221,6 +236,43 @@ public class SecWalletApp extends Applet {
         apdu.setOutgoing();
         apdu.setOutgoingLength(signatureLength);
         apdu.sendBytesLong(buf, (short) 0, signatureLength);
+    }
+    
+    public void getReaderKeyMod(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer(0);
+    	short bytesRead = 0;
+    	short readOffset = 0;
+    	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+    	
+    	bytesRead = apdu.setIncomingAndReceive();
+    	
+    	while (bytesRead > 0) {
+    		Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_MOD, readOffset, bytesRead);
+    		readOffset += bytesRead;
+            bytesRead = apdu.receiveBytes(ISO7816.OFFSET_CDATA);
+    	}
+    }
+    
+    public void getReaderKeyExp(APDU apdu) {
+    	  byte[] buffer = apdu.getBuffer();
+    	  short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+
+    	  apdu.setIncomingAndReceive();
+    	  Util.arrayCopyNonAtomic(buffer, defISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, numBytes);
+    }
+    
+    public void generateCardKeys(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+    	keyPair = new KeyPair(KeyPair.ALG_RSA_CRT, KeyBuilder.LENGTH_RSA_1024);
+    	keyPair.genKeyPair();
+    	
+    	publicKey = (RSAPublicKey) keyPair.getPublic();
+    	short pubKeyMod = publicKey.getModulus(CARD_KEY_MOD, (short)(0));
+    	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
+    	
+    	buffer[0] = (byte) pubKeyExp;
+        buffer[1] = (byte) pubKeyMod;
+        apdu.setOutgoingAndSend((short) 0, (short) 2);
     }
 
 }
