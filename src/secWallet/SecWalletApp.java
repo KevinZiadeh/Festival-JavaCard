@@ -24,6 +24,8 @@ public class SecWalletApp extends Applet {
     public static final byte INS_DEBIT = (byte)0x30;
     public static final byte READER_PUBKEY_MOD = (byte)0x50;
     public static final byte READER_PUBKEY_EXP = (byte)0x51;
+    public static final byte CARD_PUBKEY_MOD = (byte)0x60; 
+    public static final byte CARD_PUBKEY_EXP = (byte)0x61;
 
     /* ATTRIBUTES */
     OwnerPIN pin;
@@ -270,9 +272,28 @@ public class SecWalletApp extends Applet {
     	short pubKeyMod = publicKey.getModulus(CARD_KEY_MOD, (short)(0));
     	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
     	
-    	buffer[0] = (byte) pubKeyExp;
-        buffer[1] = (byte) pubKeyMod;
-        apdu.setOutgoingAndSend((short) 0, (short) 2);
+    	privateKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+    	//not too sure whether we need this part or not since we are crating other methods to send exp and mod
+//    	buffer[0] = (byte) pubKeyExp;
+//        buffer[1] = (byte) pubKeyMod;
+//        apdu.setOutgoingAndSend((short) 0, (short) 2);
+    }
+    
+
+    public void sendCardPubKeyMod(APDU apdu){
+    	byte[] buffer = apdu.getBuffer();
+    	short pubKeyMod = publicKey.getModulus(CARD_KEY_MOD, (short)(0));
+    	apdu.setOutgoing();
+    	apdu.setOutgoingLength(pubKeyMod);
+    	apdu.sendBytesLong(CARD_KEY_MOD,(short)0,pubKeyMod);
     }
 
+    public void sendCardPubKeyExp(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+    	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
+    	apdu.setOutgoing();
+    	apdu.setOutgoingLength(pubKeyExp);
+    	apdu.sendBytesLong(CARD_KEY_EXP,(short)0,pubKeyExp);
+    	
+    }
 }
