@@ -42,6 +42,7 @@ public class SecWalletApp extends Applet {
     private static byte[] num_participant;
     
     /* SIGNATURE ATTRIBUTES */
+    private short msgLen;
     private static byte[] READER_KEY_MOD;
     private static byte[] READER_KEY_EXP;
     private static byte[] CARD_KEY_MOD; 
@@ -83,6 +84,8 @@ public class SecWalletApp extends Applet {
         privateKey = null;
         publicKey = null;
         reader_pubKey = null;
+        
+        msgLen = 0;
         
     	
     	pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE); // Create User PIN
@@ -147,16 +150,30 @@ public class SecWalletApp extends Applet {
             	break;
             case INS_DEBIT:
             	if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
-            	debit(apdu);
-            	break;
+//            	msgLen = receiveSigned(apdu);
+//            	if (verifyMessage(msgLen) == true) {
+            		debit(apdu);
+//            		break;		
+//            	} // should throw some kind of error here 
             case INS_CREDIT:
             	if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
-            	credit(apdu);
-            	break;
+//            	msgLen = receiveSigned(apdu);
+//            	if (verifyMessage(msgLen) == true) {
+            		credit(apdu);
+            		break;		
+//            	}
             case INS_GET_BALANCE:
                 if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
                 getBalance(apdu);
                 break;
+//            case READER_PUBKEY_MOD:
+//            	getReaderKeyMod(apdu);
+//            case READER_PUBKEY_EXP:
+//            	getReaderKeyExp(apdu);
+//            case CARD_PUBKEY_MOD:
+//            	sendCardPubKeyMod(apdu);
+//            case CARD_PUBKEY_EXP:
+//            	sendCardPubKeyExp(apdu);
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
                 break;
@@ -189,6 +206,9 @@ public class SecWalletApp extends Applet {
         Util.setShort(buffer, (short) 0, card_amount);
         apdu.setOutgoingAndSend((short) 0, (short) 2);
         
+//        MSG[0] = (byte) card_amount;
+//        signAndSend(apdu, (short) 1);
+        
         
 //        short Le = apdu.setOutgoing();
 //        if(Le < 2) ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
@@ -210,6 +230,8 @@ public class SecWalletApp extends Applet {
        
         short input_amount = Util.getShort(buf, (short) ISO7816.OFFSET_CDATA);
         
+        // byte input_amount = MSG_AND_SIG[0];
+        
         if (input_amount < 0 || input_amount > MAX_INPUT_AMOUNT) ISOException.throwIt(SW_INVALID_INPUT); 
                 
         if ((short) (card_amount + input_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
@@ -230,6 +252,8 @@ public class SecWalletApp extends Applet {
         if (numBytes < 1 || numBytes > 2 || read < 1 || read > 2) ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
        
         short debit_amount = Util.getShort(buf, (short) ISO7816.OFFSET_CDATA);
+        
+        // byte debit_amount = MSG_AND_SIG[0];
         
         if (debit_amount < 0 || debit_amount > MAX_DEBIT_AMOUNT) ISOException.throwIt(SW_INVALID_INPUT); 
                 
@@ -289,7 +313,7 @@ public class SecWalletApp extends Applet {
     	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
     	
     	privateKey = (RSAPrivateCrtKey) keyPair.getPrivate();
-    	//not too sure whether we need this part or not since we are crating other methods to send exp and mod
+    	//not too sure whether we need this part or not since we are creating other methods to send exp and mod
 //    	buffer[0] = (byte) pubKeyExp;
 //        buffer[1] = (byte) pubKeyMod;
 //        apdu.setOutgoingAndSend((short) 0, (short) 2);

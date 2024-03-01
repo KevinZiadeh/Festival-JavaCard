@@ -12,6 +12,9 @@ from Crypto.Signature import pkcs1_15
 
 
 CLA = 0xB0
+GET_BALANCE = 0x10;
+CREDIT = 0x20;
+DEBIT = 0x30;
 READER_PUBKEY_MOD = 0x50
 READER_PUBKEY_EXP = 0x51
 CARD_PUBKEY_MOD = 0x60
@@ -21,6 +24,22 @@ RECEIVE_SIGNED_MSG = 0x80
 P1,P2 = 0x00, 0x00
 CONNECTION = None
 Le = 0x00
+
+
+# def getBalance(connection):
+#     Lc = 0
+#     response, sw1, sw2 = connection.transmit([CLA, GET_BALANCE, P1, P2, Lc])
+#     return response, hex(sw1), hex(sw2)
+#
+# def credit(connection, signedMessage):
+#     Lc = len(signedMessage)
+#     data, sw1, sw2 = connection.transmit([CLA, CREDIT, P1, P2, Lc] + list(signedMessage))
+#     return data, hex(sw1), hex(sw2)
+#
+# def debit(connection, signedMessage):
+#     Lc = len(signedMessage)
+#     data, sw1, sw2 = connection.transmit([CLA, DEBIT, P1, P2, Lc] + list(signedMessage))
+#     return data, hex(sw1), hex(sw2)
 
 def generateReaderKeys():
     privKey = RSA.generate(1024)
