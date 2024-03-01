@@ -17,6 +17,7 @@ READER_PUBKEY_EXP = 0x51
 CARD_PUBKEY_MOD = 0x60
 CARD_PUBKEY_EXP = 0x61
 SEND_SIGNED_MSG = 0x70
+RECEIVE_SIGNED_MSG = 0x80
 P1,P2 = 0x00, 0x00
 CONNECTION = None
 Le = 0x00
@@ -83,8 +84,13 @@ def signMessage(message_list):
 
 def sendSigned(connection, signedMsg):
     Lc = len(signedMsg)
-    data, sw1, sw2 = connection.transmit([CLA, SEND_SIGNED_MESSAGE, P1, P2, Lc] + list(signedMsg))
+    data, sw1, sw2 = connection.transmit([CLA, SEND_SIGNED_MSG, P1, P2, Lc] + list(signedMsg))
     return data, hex(sw1), hex(sw2)
+
+def receiveSigned(connection, signedMsg):
+    Lc = len(signedMsg)
+    response, sw1, sw2 = connection.transmit([CLA, RECEIVE_SIGNED_MSG, P1, P2, Lc] + signedMsg)
+    return response, hex(sw1), hex(sw2)
 
 def verifyMessage(message_list, signature):
     card_pubKey = RSA.importKey(open('card_pubKey.pem').read())
@@ -96,7 +102,7 @@ def verifyMessage(message_list, signature):
         return True
     except (ValueError, TypeError):
         return False
-
+    
     
 def main():
     r = readers()

@@ -47,7 +47,10 @@ public class SecWalletApp extends Applet {
     private static byte[] CARD_KEY_MOD; 
     private static byte[] CARD_KEY_EXP;
     private static byte[] MSG;
+    // Signed message from card 
     private static byte[] SIGNED_MSG;
+    //Signed message from reader 
+    private static byte[] MSG_AND_SIG;
 
     /* PIN SPECS */
     public static final byte MAX_PIN_SIZE = (byte) 0x04;
@@ -70,6 +73,7 @@ public class SecWalletApp extends Applet {
     /* Constructor */
     private SecWalletApp(byte bArray[], short bOffset, byte bLength) {
     	SIGNED_MSG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
+    	MSG_AND_SIG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
     	READER_KEY_MOD = new byte[128]; 
         READER_KEY_EXP = new byte[10];
         MSG = new byte[256];
@@ -265,6 +269,16 @@ public class SecWalletApp extends Applet {
     	  Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, numBytes);
     }
     
+    public void constructReaderKey(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+  	  	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+  	  	
+  	  	reader_pubKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, KeyBuilder.LENGTH_RSA_1024, false);
+  	  	reader_pubKey.setModulus(READER_KEY_MOD,(short) 0,(short) 128);
+  	  	reader_pubKey.setExponent(READER_KEY_EXP, (short) 0, (short) 4);
+  	  
+    }
+    
     public void generateCardKeys(APDU apdu) {
     	byte[] buffer = apdu.getBuffer();
     	keyPair = new KeyPair(KeyPair.ALG_RSA_CRT, KeyBuilder.LENGTH_RSA_1024);
@@ -305,14 +319,7 @@ public class SecWalletApp extends Applet {
     	  return sigLen;
     }
     
-    public boolean verifyMessage(short msgLen) {
-    	signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
-  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
-  	  	boolean verified = signature.verify(SIGNED_MSG, (short) 0 , (byte) msgLen, SIGNED_MSG, (byte) msgLen, (short) 128);
-  	  	return verified;
-    }
-    
-    public void sendSigned(APDU apdu, short msgLen) {
+    public void signAndSend(APDU apdu, short msgLen) {
     	byte[] buffer = apdu.getBuffer();
     	short sigLen = signMessage(MSG, msgLen);
     	
@@ -324,6 +331,35 @@ public class SecWalletApp extends Applet {
     	//apdu.setOutgoingLength();
     	//apdu.sendBytesLong(MSG,(short)0,); 
     }
+    
+    public short receiveSigned(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer(0);
+    	short bytesRead = 0;
+    	short readOffset = 0;
+    	short msgLen = 0;
+    	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+    	
+    	
+    	bytesRead = apdu.setIncomingAndReceive();
+    	
+    	while (bytesRead > 0) {
+    		Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, MSG_AND_SIG, readOffset, bytesRead);
+    		readOffset += bytesRead;
+            bytesRead = apdu.receiveBytes(ISO7816.OFFSET_CDATA);
+    	}
+    	
+    	msgLen = (short) (numBytes - (short) 128);
+    	
+    	return msgLen;
+    }
+    
+    public boolean verifyMessage(short msgLen) {
+    	signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
+  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
+  	  	boolean verified = signature.verify(MSG_AND_SIG, (short) 0 , (byte) msgLen, MSG_AND_SIG, (byte) msgLen, (short) 128);
+  	  	return verified;
+    }
+    
     
     
     
