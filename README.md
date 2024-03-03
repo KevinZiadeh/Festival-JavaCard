@@ -40,19 +40,19 @@ Give Money  |   |
               |             Buy Items    +----------------------+
               | 
               |
-             (4) Refill Card with Money
+             (4) Manage Card
               |
               |
               |
               |
               ▼
-  +-----------------------+
-  |                       |
-  |                       |
-  |      Money Booth      |
-  |                       |
-  |      add_money.py     |
-  +-----------------------+
+  +-------------------------+
+  |                         |
+  |  Card Management Booth  |
+  |                         |
+  |       unblock.py        |
+  |      add_money.py       |
+  +-------------------------+
 ```
 
 ## Requirements

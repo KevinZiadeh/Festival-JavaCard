@@ -1,11 +1,6 @@
 import time
-from Client.instructions import print_card_info, wait_for_card, get_balance, validate_status
-
-
-SELECT = [0x00,0xA4,0x04,0x00,0x08]
-AID = [0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08]
-CLA   = 0xB0
-VERIFY_PIN_INS = 0x01
+from instructions import print_card_info, get_balance, transfer_credit, reimburse_credit, validate_pin, SELECT, AID
+from helpers import wait_for_card, wait_for_card_removed
 
 banner = """
 ==========================
@@ -16,53 +11,46 @@ banner = """
 3 - Buy Drinks (10)
 4 - Buy Food (20)
 5 - Buy Tickets (50)
+6 - Start Credit Transfer
+7 - Reimburse Credit
 9 - Exit
 ==========================
         """
         
-def prepareData(data):
-    return [ord(str(e)) for e in data]
-
-
-def validatePin(connection, pin_validated):
-    if pin_validated:
-        print("Pin already validated")
-        return True
-    
-    pin = input("Please enter your pin: ")
-    if len(pin) != 4:
-        print("Invalid PIN. Please enter a 4 digit pin")
-        return False
-    
-    try:
-        _, sw1, sw2 = connection.transmit([CLA, VERIFY_PIN_INS, 0x00, 0x00, 0x4] + prepareData(pin))
-    except:
-        print("Invalid PIN. Please enter a 4 digit pin")
-        return False
-    
-    if validate_status(sw1, sw2):
-        return True
-    
-
-INSTRUCTION_CHOICE_MAP = {
-	2: get_balance,
-}
-def main():
-    welcome_message = """
+welcome_message = """
 ###############################################
 #                                             #
 #        Welcome to the Festival              #
 #                                             #
 ###############################################
 Insert Card..."""
-
+ending_message = """
+###############################################
+#                                             #
+#        We Hope You Had A Great Time         #
+#                                             #
+###############################################
+\n\n\n\n\n\n\n\n\n\n
+          """
+          
+def heartbeat(connection):
+    try:
+        connection.getATR()
+        return True
+    except:
+        print("Card Removed...")
+        connection.disconnect()
+        return False
     
+
+            
+def main():
     connection = None
     while True:
         print(welcome_message)
         try:
             connection = wait_for_card()
-            pin_validated = False
+            print("Card Detected...")
 
             #Selection AID
             _, sw1, sw2 = connection.transmit(SELECT + AID)
@@ -75,53 +63,55 @@ Insert Card..."""
             if not card_name or not card_number:
                 raise Exception("There was an error with your card. Please go to the nearest branch for assistance")
                         
-            while not pin_validated:
-                pin_validated = validatePin(connection, pin_validated)
+            valid = validate_pin(connection)
+            if not valid:
+                connection.disconnect()
+                time.sleep(1)
+                continue
         
             print(banner)
             while True:
-                    choice = input("\nPlease input the type of operation: ")
-                    try:
-                        handler = INSTRUCTION_CHOICE_MAP.get(int(choice))
-                    except:
-                        print("Invalid Choice")
-                        continue
-                    if handler:
-                        handler(connection)
-                    elif choice == "0":
-                        print(banner)
-                    elif choice == "1":
-                        card_name, card_number = print_card_info(connection, card_name, card_number)
-                    elif choice == "9":
-                        if connection:
-                            connection.disconnect() 
-                            print("\nPlease remove your card")
-                            time.sleep(5)
+                if not heartbeat(connection):
+                    time.sleep(1)
+                    break
+                choice = input("\nPlease input the type of operation: ")
+                if not heartbeat(connection):
+                    time.sleep(1)
+                    break
+                if choice == "0":
+                    print(banner)
+                elif choice == "1":
+                    card_name, card_number = print_card_info(connection, card_name, card_number)
+                elif choice == "2":
+                    get_balance(connection)
+                elif choice == "6":
+                    reset = transfer_credit(connection, card_number)
+                    if reset:
+                        connection.disconnect()
                         break
-                    else:
-                        print("Invalid Choice")
+                elif choice == "7":
+                    reimburse_credit(connection, card_number)
+                elif choice == "9":
+                    print("\nPlease remove your card")
+                    wait_for_card_removed(connection)
+                    print(ending_message)
+                    break
+                else:
+                    print("Invalid Choice")
         
         except Exception as e:
+            print("Exception")
             print(e)
-            if connection:
-                connection.disconnect() 
-                print("\nPlease remove your card")
-            time.sleep(5)
+            print("\nPlease remove your card")
+            wait_for_card_removed(connection)
+            print(ending_message)
+            time.sleep(1)
         
         except KeyboardInterrupt:
-            if connection:
-                connection.disconnect() 
-                print("\nCard Disconnected...")
             print("\nExiting...\n")
             break
         
-    print("""
-###############################################
-#                                             #
-#        We Hope You Had A Great Time         #
-#                                             #
-###############################################
-          """)
+    print(ending_message)
 
 if __name__ == "__main__":
     main()

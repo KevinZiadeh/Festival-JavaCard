@@ -1,12 +1,4 @@
-def encode_bytes(data, pad=0):
-    res = data.encode("utf-8").hex()
-    if pad:
-        res += "00" * ((pad - len(res)//2))
-    return res
-
-def encode_short(data):
-    return int(data).to_bytes(2, byteorder="big").hex()
-
+from helpers import encode_bytes, encode_short
 
 def main():
     print("""
@@ -49,10 +41,11 @@ def main():
 PIN: {pin}
 Card Name: {card_name}
 Card Number: {card_number}
+Amount to add: {add_amount}
 
 To initialize the card, please enter the following commands in the terminal:
 
-gp --install ./SecWalllet221.cap --params {encoded_pin}{encoded_card_name}{encoded_card_number}{encoded_add_amount}
+gp --install ./SecWallet221.cap --params {encoded_pin}{encoded_card_name}{encoded_card_number}{encoded_add_amount}
 
 ========================================
     """)

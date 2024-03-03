@@ -1,1 +1,4 @@
 /.metadata/
+Client/.project
+Client/.pydevproject
+Client/__pycache__/
