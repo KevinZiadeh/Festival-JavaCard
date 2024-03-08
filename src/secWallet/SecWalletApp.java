@@ -167,9 +167,9 @@ public class SecWalletApp extends Applet {
                 break;
             case INS_DEBIT:
             	if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
-//            	msgLen = receiveSigned(apdu);
+            	msgLen = receiveSigned(apdu);
 //            	if (verifyMessage(msgLen) == true) {
-            		debit(apdu);
+            		debit(apdu, msgLen);
             		break;		
 //            	} // should throw some kind of error here 
             case INS_CREDIT:
@@ -235,9 +235,9 @@ public class SecWalletApp extends Applet {
         if ((short) (card_amount + input_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
         
         card_amount = (short) (card_amount + input_amount);
-        byte[] str = {'O', 'K'};
-        Util.arrayCopyNonAtomic(str, (short) 0, buf, (short) 0, (short)2);
-        apdu.setOutgoingAndSend((short) 0, (short) 2);
+//        byte[] str = {'O', 'K'};
+//        Util.arrayCopyNonAtomic(str, (short) 0, buf, (short) 0, (short)2);
+//        apdu.setOutgoingAndSend((short) 0, (short) 2);
 
         //Not too sure we want to do signing when adding money 
         //also where is the verification of the signature supposed to happen, maybe at the terminal level or vice versa
@@ -245,7 +245,7 @@ public class SecWalletApp extends Applet {
         //or out
     } 
     
-    private void debit(APDU apdu) {
+    private void debit(APDU apdu, short msgLen) {
         byte[] buf = apdu.getBuffer();
         byte numBytes = buf[ISO7816.OFFSET_LC];
         byte read = (byte)apdu.setIncomingAndReceive();
@@ -255,140 +255,140 @@ public class SecWalletApp extends Applet {
         short debit_amount = Util.getShort(buf, (short) ISO7816.OFFSET_CDATA);
                 
         if (debit_amount < 0 || debit_amount > MAX_DEBIT_AMOUNT) ISOException.throwIt(SW_INVALID_INPUT_DEBIT); 
-                
+        
+//        if ((short) (card_amount + debit_amount) > MAX_BALANCE) ISOException.throwIt(SW_MAX_BALANCE); 
+//        
         if (debit_amount > card_amount) ISOException.throwIt(SW_NEG_BALANCE); 
         
         card_amount = (short) (card_amount - debit_amount);
-        byte[] str = {'O', 'K'};
-        Util.arrayCopyNonAtomic(str, (short) 0, buf, (short) 0, (short)2);
-        apdu.setOutgoingAndSend((short) 0, (short) 2);
+//        byte[] str = {'O', 'K'};
+//        Util.arrayCopyNonAtomic(str, (short) 0, buf, (short) 0, (short)2);
+//        apdu.setOutgoingAndSend((short) 0, (short) 2);
 
         
         
-//        signature.init(keyPair.getPrivate(), Signature.MODE_SIGN);
-//        short signatureLength = signature.sign(buf, ISO7816.OFFSET_CDATA, length, buf, (short) 0);
+        signature.init(keyPair.getPrivate(), Signature.MODE_SIGN);
+        short signatureLength = signature.sign(buf, ISO7816.OFFSET_CDATA, msgLen, buf, (short) 0);
         
         //send the signature back to the terminal 
-//        apdu.setOutgoing();
-//        apdu.setOutgoingLength(signatureLength);
-//        apdu.sendBytesLong(buf, (short) 0, signatureLength);
+        apdu.setOutgoing();
+        apdu.setOutgoingLength(signatureLength);
+        apdu.sendBytesLong(buf, (short) 0, signatureLength);
     }
     
-//    public void getReaderKeyMod(APDU apdu) {
-//    	byte[] buffer = apdu.getBuffer(0);
-//    	short bytesRead = 0;
-//    	short readOffset = 0;
-//    	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
-//    	
-//    	bytesRead = apdu.setIncomingAndReceive();
-//    	
-//    	while (bytesRead > 0) {
-//    		Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_MOD, readOffset, bytesRead);
-//    		readOffset += bytesRead;
-//            bytesRead = apdu.receiveBytes(ISO7816.OFFSET_CDATA);
-//    	}
-//    }
+    public void getReaderKeyMod(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+    	short bytesRead = 0;
+    	short readOffset = 0;
+    	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+    	
+    	bytesRead = apdu.setIncomingAndReceive();
+    	
+    	while (bytesRead > 0) {
+    		Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_MOD, readOffset, bytesRead);
+    		readOffset += bytesRead;
+            bytesRead = apdu.receiveBytes(ISO7816.OFFSET_CDATA);
+    	}
+    }
     
-//    public void getReaderKeyExp(APDU apdu) {
-//    	  byte[] buffer = apdu.getBuffer();
-//    	  short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+    public void getReaderKeyExp(APDU apdu) {
+    	  byte[] buffer = apdu.getBuffer();
+    	  short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+
+    	  apdu.setIncomingAndReceive();
+    	  Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, numBytes);
+    }
+//    
+    public void constructReaderKey(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+  	  	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+  	  	
+  	  	reader_pubKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, KeyBuilder.LENGTH_RSA_1024, false);
+  	  	reader_pubKey.setModulus(READER_KEY_MOD,(short) 0,(short) 128);
+  	  	reader_pubKey.setExponent(READER_KEY_EXP, (short) 0, (short) 4);
+  	  
+    }
+    
+    public void generateCardKeys(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+    	keyPair = new KeyPair(KeyPair.ALG_RSA_CRT, KeyBuilder.LENGTH_RSA_1024);
+    	keyPair.genKeyPair();
+    	
+    	publicKey = (RSAPublicKey) keyPair.getPublic();
+    	short pubKeyMod = publicKey.getModulus(CARD_KEY_MOD, (short)(0));
+    	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
+    	
+    	privateKey = (RSAPrivateCrtKey) keyPair.getPrivate();
+    	//not too sure whether we need this part or not since we are creating other methods to send exp and mod
+//    	buffer[0] = (byte) pubKeyExp;
+//        buffer[1] = (byte) pubKeyMod;
+//        apdu.setOutgoingAndSend((short) 0, (short) 2);
+    }
+//    
 //
-//    	  apdu.setIncomingAndReceive();
-//    	  Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, numBytes);
-//    }
-//    
-//    public void constructReaderKey(APDU apdu) {
-//    	byte[] buffer = apdu.getBuffer();
-//  	  	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
-//  	  	
-//  	  	reader_pubKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, KeyBuilder.LENGTH_RSA_1024, false);
-//  	  	reader_pubKey.setModulus(READER_KEY_MOD,(short) 0,(short) 128);
-//  	  	reader_pubKey.setExponent(READER_KEY_EXP, (short) 0, (short) 4);
-//  	  
-//    }
+    public void sendCardPubKeyMod(APDU apdu){
+    	byte[] buffer = apdu.getBuffer();
+    	short pubKeyMod = publicKey.getModulus(CARD_KEY_MOD, (short)(0));
+    	apdu.setOutgoing();
+    	apdu.setOutgoingLength(pubKeyMod);
+    	apdu.sendBytesLong(CARD_KEY_MOD,(short)0,pubKeyMod);
+    }
+
+    public void sendCardPubKeyExp(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+    	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
+    	apdu.setOutgoing();
+    	apdu.setOutgoingLength(pubKeyExp);
+    	apdu.sendBytesLong(CARD_KEY_EXP,(short)0,pubKeyExp);    	
+    }
     
-//    public void generateCardKeys(APDU apdu) {
-//    	byte[] buffer = apdu.getBuffer();
-//    	keyPair = new KeyPair(KeyPair.ALG_RSA_CRT, KeyBuilder.LENGTH_RSA_1024);
-//    	keyPair.genKeyPair();
-//    	
-//    	publicKey = (RSAPublicKey) keyPair.getPublic();
-//    	short pubKeyMod = publicKey.getModulus(CARD_KEY_MOD, (short)(0));
-//    	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
-//    	
-//    	privateKey = (RSAPrivateCrtKey) keyPair.getPrivate();
-//    	//not too sure whether we need this part or not since we are creating other methods to send exp and mod
-////    	buffer[0] = (byte) pubKeyExp;
-////        buffer[1] = (byte) pubKeyMod;
-////        apdu.setOutgoingAndSend((short) 0, (short) 2);
-//    }
-//    
-//
-//    public void sendCardPubKeyMod(APDU apdu){
-//    	byte[] buffer = apdu.getBuffer();
-//    	short pubKeyMod = publicKey.getModulus(CARD_KEY_MOD, (short)(0));
-//    	apdu.setOutgoing();
-//    	apdu.setOutgoingLength(pubKeyMod);
-//    	apdu.sendBytesLong(CARD_KEY_MOD,(short)0,pubKeyMod);
-//    }
-//
-//    public void sendCardPubKeyExp(APDU apdu) {
-//    	byte[] buffer = apdu.getBuffer();
-//    	short pubKeyExp = publicKey.getExponent(CARD_KEY_EXP, (short)(0));
-//    	apdu.setOutgoing();
-//    	apdu.setOutgoingLength(pubKeyExp);
-//    	apdu.sendBytesLong(CARD_KEY_EXP,(short)0,pubKeyExp);    	
-//    }
+    public short signMessage(byte[] message, short msgLen) {
+    	  signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
+    	  signature.init(privateKey, Signature.MODE_SIGN);
+    	  short sigLen = signature.sign(message, (short) 0, (byte) msgLen, SIGNED_MSG, (byte) 0);
+    	  return sigLen;
+    }
     
-//    public short signMessage(byte[] message, short msgLen) {
-//    	  signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
-//    	  signature.init(privateKey, Signature.MODE_SIGN);
-//    	  short sigLen = signature.sign(message, (short) 0, (byte) msgLen, SIGNED_MSG, (byte) 0);
-//    	  return sigLen;
-//    }
-//    
-//    public void signAndSend(APDU apdu, short msgLen) {
-//    	byte[] buffer = apdu.getBuffer();
-//    	short sigLen = signMessage(MSG, msgLen);
-//    	
-//    	//The signed message becomes the actual sent message
-//    	Util.arrayCopyNonAtomic(SIGNED_MSG, (short) 0, MSG, msgLen, sigLen);
-//    	
-//    	//Not too sure about the length here, because it is the length of the response data
-//    	apdu.setOutgoing();
-//    	//apdu.setOutgoingLength();
-//    	//apdu.sendBytesLong(MSG,(short)0,); 
-//    }
+    public void signAndSend(APDU apdu, short msgLen) {
+    	byte[] buffer = apdu.getBuffer();
+    	short sigLen = signMessage(MSG, msgLen);
+    	
+    	//The signed message becomes the actual sent message
+    	Util.arrayCopyNonAtomic(SIGNED_MSG, (short) 0, MSG, msgLen, sigLen);
+    	
+    	//Not too sure about the length here, because it is the length of the response data
+    	apdu.setOutgoing();
+    	//apdu.setOutgoingLength();
+    	//apdu.sendBytesLong(MSG,(short)0,); 
+    }
     
-//    public short receiveSigned(APDU apdu) {
-//    	byte[] buffer = apdu.getBuffer(0);
-//    	short bytesRead = 0;
-//    	short readOffset = 0;
-//    	short msgLen = 0;
-//    	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
-//    	
-//    	
-//    	bytesRead = apdu.setIncomingAndReceive();
-//    	
-//    	while (bytesRead > 0) {
-//    		Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, MSG_AND_SIG, readOffset, bytesRead);
-//    		readOffset += bytesRead;
-//            bytesRead = apdu.receiveBytes(ISO7816.OFFSET_CDATA);
-//    	}
-//    	
-//    	msgLen = (short) (numBytes - (short) 128);
-//    	
-//    	return msgLen;
-//    }
-//    
-//    public boolean verifyMessage(short msgLen) {
-//    	signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
-//  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
-//  	  	boolean verified = signature.verify(MSG_AND_SIG, (short) 0 , (byte) msgLen, MSG_AND_SIG, (byte) msgLen, (short) 128);
-//  	  	return verified;
-//    }
+    public short receiveSigned(APDU apdu) {
+    	byte[] buffer = apdu.getBuffer();
+    	short bytesRead = 0;
+    	short readOffset = 0;
+    	short msgLen = 0;
+    	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
+    	
+    	
+    	bytesRead = apdu.setIncomingAndReceive();
+    	
+    	while (bytesRead > 0) {
+    		Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, MSG_AND_SIG, readOffset, bytesRead);
+    		readOffset += bytesRead;
+            bytesRead = apdu.receiveBytes(ISO7816.OFFSET_CDATA);
+    	}
+    	
+    	msgLen = (short) (numBytes - (short) 128);
+    	
+    	return msgLen;
+    }
     
-    
+    public boolean verifyMessage(short msgLen) {
+    	signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
+  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
+  	  	boolean verified = signature.verify(MSG_AND_SIG, (short) 0 , (byte) msgLen, MSG_AND_SIG, (byte) msgLen, (short) 128);
+  	  	return verified;
+    }
     
     
 }
