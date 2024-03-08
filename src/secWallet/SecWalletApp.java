@@ -343,7 +343,7 @@ public class SecWalletApp extends Applet {
     }
     
     public short signMessage(byte[] message, short msgLen) {
-    	  signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
+    	  signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
     	  signature.init(privateKey, Signature.MODE_SIGN);
     	  short sigLen = signature.sign(message, (short) 0, (byte) msgLen, SIGNED_MSG, (byte) 0);
     	  return sigLen;
@@ -384,7 +384,7 @@ public class SecWalletApp extends Applet {
     }
     
     public boolean verifyMessage(short msgLen) {
-    	signature = Signature.getInstance(Signature.ALG_RSA_SHA256_PKCS1, false);
+    	signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
   	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
   	  	boolean verified = signature.verify(MSG_AND_SIG, (short) 0 , (byte) msgLen, MSG_AND_SIG, (byte) msgLen, (short) 128);
   	  	return verified;
