@@ -6,7 +6,7 @@ from smartcard.CardRequest import CardRequest
 from smartcard.util import toHexString
 
 from Crypto.PublicKey import RSA
-from Crypto.Hash import SHA256
+from Crypto.Hash import SHA
 from Crypto.PublicKey.RSA import construct
 from Crypto.Signature import pkcs1_15
 
@@ -17,6 +17,7 @@ CREDIT = 0x20;
 DEBIT = 0x30;
 READER_PUBKEY_MOD = 0x50
 READER_PUBKEY_EXP = 0x51
+READER_PUBKEY = 0x52
 CARD_PUBKEY_MOD = 0x60
 CARD_PUBKEY_EXP = 0x61
 SEND_SIGNED_MSG = 0x70
@@ -74,6 +75,12 @@ def sendPubKeyExp(connection,exp):
     data, sw1, sw2 = connection.transmit([CLA, READER_PUBKEY_EXP, P1, P2, Lc] + pubKeyExp)
     return data, hex(sw1), hex(sw2)
 
+def constructPubKey(connection,msg_hexlist):
+    Lc = len(message_hexlist)
+    message_hexlist = str.encode(message_hexlist)
+    data, sw1, sw2 = connection.transmit([CLA,READER_PUBKEY,P1,P2,Lc]+list(message_hexlist))
+    return data,hex(sw1),hex(sw2)
+
 def getCardKeyMod(connection):
     Lc = 0
     response, sw1, sw2 = connection.transmit([CLA, CARD_PUBKEY_MOD, P1, P2, Lc])
@@ -88,6 +95,7 @@ def getCardKeyExp(connection):
 
 def constructCardKey(mod, exp):
     card_pubKey = construct(mod, exp)
+    print("Reader side, Car Pubkey" + card_pubKey)
     return card_pubKey
 
 def saveCardKey(pubKey):
@@ -97,7 +105,7 @@ def saveCardKey(pubKey):
 def signMessage(message_list):
     reader_privKey = RSA.importKey(open('reader_privKey.pem').read())
     message = bytes(message_list)
-    hash = SHA256.new(message)
+    hash = SHA.new(message)
     signature = pkcs1_15.new(reader_privKey).sign(hash)
     return message + signature
 
@@ -114,7 +122,7 @@ def receiveSigned(connection, signedMsg):
 def verifyMessage(message_list, signature):
     card_pubKey = RSA.importKey(open('card_pubKey.pem').read())
     message = bytes(message_list)
-    hash = SHA256.new(message)
+    hash = SHA.new(message)
     signature = bytes(signature)
     try:
         pkcs1_15.new(card_pubKey).verify(hash, signature)
@@ -128,11 +136,20 @@ def main():
     connection = r[0].createConnection() 
     connection.connect()
     
+    cardMod,sw1,sw2 = getCardKeyMod(connection)
+    cardExp,sw1,sw2 = getCardKeyExp(connection)
+    
+    cardPubKey = constructCardKey(cardMod, cardExp)
+    writeToFile = saveCardKey(cardPubKey)
+    
     generateReaderKeys()
     readerPrivKey, readerPubKey, readerKeyMod, readerKeyExp = retrieveReaderKeys()
     
     data, sw1, sw2 = sendPubKeyMod(connection, readerKeyMod)
-    data, sw1, sw2 = sendPubKeyExp(connection, readerKeyExp) 
+    data, sw1, sw2 = sendPubKeyExp(connection, readerKeyExp)
+    
+    msg = "Testing the keys"
+    data, sw1, sw2 = constructPubKey(connection, ascii_to_hexlist(msg))
     
     
 if __name__ == '__main__':
