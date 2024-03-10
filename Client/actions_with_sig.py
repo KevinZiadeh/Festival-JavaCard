@@ -159,11 +159,6 @@ def main():
                         
     valid = validate_pin(connection)
     
-    data, sw1, sw2 = getCardKey(connection)
-    
-
-    
-
     data, sw1, sw2 = connection.transmit([CLA, 0x60, 0x00, 0x00, 0x00])
     
     card_pub_mod_len = (data[0] << 8) + data[1]
@@ -202,23 +197,6 @@ def main():
     else: 
         print('key generated sent')
 
-    # cardExp,sw1,sw2 = getCardKeyExp(connection)
-    # print("PubKey Exponent:",cardExp,sw1,sw2)
-    # cardMod,sw1,sw2 = getCardKeyMod(connection)
-    # print("PubKey Modulus:",cardMod,sw1,sw2)
-    
-    # cardPubKey = constructCardKey(cardMod, cardExp)
-    # writeToFile = saveCardKey(cardPubKey)
-    
-    # generateReaderKeys()
-    # readerPrivKey, readerPubKey, readerKeyMod, readerKeyExp = retrieveReaderKeys()
-    
-    # data, sw1, sw2 = sendPubKeyMod(connection, readerKeyMod)
-    # data, sw1, sw2 = sendPubKeyExp(connection, readerKeyExp)
-    
-    # msg = "Testing the keys"
-    # data, sw1, sw2 = constructPubKey(connection, ascii_to_hexlist(msg))
-    
     
 if __name__ == '__main__':
     main()
