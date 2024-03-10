@@ -1,7 +1,4 @@
 package secWallet;
-
-import java.security.interfaces.RSAPublicKey;
-
 //import java.security.KeyPair;
 //import java.security.Signature;
 //import java.security.interfaces.RSAPublicKey;
@@ -315,7 +312,7 @@ public class SecWalletApp extends Applet {
   	  		reader_pubKey.setExponent(READER_KEY_EXP, (short) 0, (short) 4);	
   	  	} catch(CryptoException c) {
 	  	  	short reason = c.getReason();
-	  		ISOException.throwIt(reason);  		
+	  		ISOException.throwIt(reason);
   	  	}
   	  	System.out.println("Card side, Reader Key: " + reader_pubKey.toString());
   	  
@@ -401,7 +398,7 @@ public class SecWalletApp extends Applet {
     
     public boolean verifyMessage(short msgLen) {
     	signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
-  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
+  	  	signature.init((Key) reader_pubKey, Signature.MODE_VERIFY);
   	  	boolean verified = signature.verify(MSG_AND_SIG, (short) 0 , (byte) msgLen, MSG_AND_SIG, (byte) msgLen, (short) 128);
   	  	return verified;
     }
