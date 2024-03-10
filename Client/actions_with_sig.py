@@ -48,25 +48,23 @@ Le = 0x00
 #     return data, hex(sw1), hex(sw2)
 
 def generateReaderKeys():
-    privKey = RSA.generate(1024)
+    key = RSA.generate(1024)
+    privateKey = key.exportKey()
     with open('reader_privKey.pem', 'wb') as file:
-        file.write(privKey.exportKey())
+        file.write(privateKey)
         
-    pubkey = privKey.publickey()
+    publicKey = key.publickey().exportKey()
     with open('reader_pubKey.pem', 'wb') as file:
-        file.write(pubKey.exportKey())
+        file.write(publicKey)
         
 def retrieveReaderKeys():
-    with open('reader_privKey.pem', 'wb') as file:
+    with open('reader_privKey.pem', 'rb') as file:
         reader_privKey = RSA.importKey(file.read())
         
-    with open('reader_pubKey.pem', 'wb') as file: 
+    with open('reader_pubKey.pem', 'rb') as file: 
         reader_pubKey = RSA.importKey(file.read())
         
-    pubKeyMod = reader_pubKey.n
-    pubkeyExp = reader_pubKey.e
-        
-    return reader_privKey, reader_pubKey, pubKeyMod, pubkeyExp
+    return reader_privKey, reader_pubKey
 
 def sendPubKeyMod(connection,mod):
     pubKeyMod = list(mod.to_bytes(128,byteorder='big'))
@@ -175,11 +173,15 @@ def main():
     card_pub_mod = int.from_bytes(bytes(card_pub_mod), 'big')
     card_pub_exp = int.from_bytes(bytes(card_pub_exp), 'big')
     
-    privKey = RSA.generate(1024)
-    pubKey = privKey.publickey()
-    n = list(pubKey.n.to_bytes(128,byteorder='big'))
-    e = list(pubKey.e.to_bytes(128,byteorder='big'))
-    card_pub_key = construct((card_pub_mod, card_pub_exp))
+    cardPubKey = constructCardKey(card_pub_mod, card_pub_exp)
+    
+    writeToFile = saveCardKey(cardPubKey)
+    
+    generateReaderKeys()
+    readerPrivKey, readerPubKey = retrieveReaderKeys()
+   
+    n = list(readerPubKey.n.to_bytes(128,byteorder='big'))
+    e = list(readerPubKey.e.to_bytes(128,byteorder='big'))
 
     data, sw1, sw2 = connection.transmit([CLA, 0x50, 0x00, 0x00, len(n)] + n)
     if sw1 != 0x90 or sw2 != 0x00:
