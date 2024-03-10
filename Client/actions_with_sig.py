@@ -163,24 +163,38 @@ def main():
     
     data, sw1, sw2 = getCardKey(connection)
     
-    print("OK")
+
     
-    cardExp,sw1,sw2 = getCardKeyExp(connection)
-    print("PubKey Exponent:",cardExp,sw1,sw2)
-    cardMod,sw1,sw2 = getCardKeyMod(connection)
-    print("PubKey Modulus:",cardMod,sw1,sw2)
+
+    data, sw1, sw2 = connection.transmit([CLA, 0x60, 0x00, 0x00, 0x00])
     
-    cardPubKey = constructCardKey(cardMod, cardExp)
-    writeToFile = saveCardKey(cardPubKey)
+    card_pub_mod_len = (data[0] << 8) + data[1]
+    card_pub_mod = data[2:card_pub_mod_len]
+    card_pub_exp_len =  (data[2 + card_pub_mod_len] << 8) + data[3 + card_pub_mod_len]
+    card_pub_exp = data[4 + card_pub_mod_len:4 + card_pub_mod_len+card_pub_exp_len]
+
+    print(card_pub_mod_len)
+    print(card_pub_mod)
+    print(card_pub_exp_len)
+    print(card_pub_exp)
     
-    generateReaderKeys()
-    readerPrivKey, readerPubKey, readerKeyMod, readerKeyExp = retrieveReaderKeys()
     
-    data, sw1, sw2 = sendPubKeyMod(connection, readerKeyMod)
-    data, sw1, sw2 = sendPubKeyExp(connection, readerKeyExp)
+    # cardExp,sw1,sw2 = getCardKeyExp(connection)
+    # print("PubKey Exponent:",cardExp,sw1,sw2)
+    # cardMod,sw1,sw2 = getCardKeyMod(connection)
+    # print("PubKey Modulus:",cardMod,sw1,sw2)
     
-    msg = "Testing the keys"
-    data, sw1, sw2 = constructPubKey(connection, ascii_to_hexlist(msg))
+    # cardPubKey = constructCardKey(cardMod, cardExp)
+    # writeToFile = saveCardKey(cardPubKey)
+    
+    # generateReaderKeys()
+    # readerPrivKey, readerPubKey, readerKeyMod, readerKeyExp = retrieveReaderKeys()
+    
+    # data, sw1, sw2 = sendPubKeyMod(connection, readerKeyMod)
+    # data, sw1, sw2 = sendPubKeyExp(connection, readerKeyExp)
+    
+    # msg = "Testing the keys"
+    # data, sw1, sw2 = constructPubKey(connection, ascii_to_hexlist(msg))
     
     
 if __name__ == '__main__':
