@@ -1,7 +1,7 @@
 import sys
 
 from instructions import print_card_info, get_balance, transfer_credit, reimburse_credit, validate_pin, SELECT, AID
-from helpers import wait_for_card, wait_for_card_removed
+from helpers import wait_for_card, wait_for_card_removed, encode_short, short_to_byte_array
 
 
 from smartcard.System import readers
@@ -172,13 +172,34 @@ def main():
     card_pub_mod = data[2:card_pub_mod_len]
     card_pub_exp_len =  (data[2 + card_pub_mod_len] << 8) + data[3 + card_pub_mod_len]
     card_pub_exp = data[4 + card_pub_mod_len:4 + card_pub_mod_len+card_pub_exp_len]
+    card_pub_mod = int.from_bytes(bytes(card_pub_mod), 'big')
+    card_pub_exp = int.from_bytes(bytes(card_pub_exp), 'big')
+    
+    privKey = RSA.generate(1024)
+    pubKey = privKey.publickey()
+    n = list(pubKey.n.to_bytes(128,byteorder='big'))
+    e = list(pubKey.e.to_bytes(128,byteorder='big'))
+    card_pub_key = construct((card_pub_mod, card_pub_exp))
 
-    print(card_pub_mod_len)
-    print(card_pub_mod)
-    print(card_pub_exp_len)
-    print(card_pub_exp)
-    
-    
+    data, sw1, sw2 = connection.transmit([CLA, 0x50, 0x00, 0x00, len(n)] + n)
+    if sw1 != 0x90 or sw2 != 0x00:
+        print('Error while transmitting modulus')
+        print(hex(sw1), hex(sw2))
+    else: 
+        print('mod sent')
+    data, sw1, sw2 = connection.transmit([CLA, 0x51, 0x00, 0x00, len(n)] + e)
+    if sw1 != 0x90 or  sw2 != 0x00:
+        print('Error while transmitting exponent')
+        print(hex(sw1), hex(sw2))
+    else: 
+        print('exp sent')
+    data, sw1, sw2 = connection.transmit([CLA, 0x52, 0x00, 0x00])
+    if sw1 != 0x90 or  sw2 != 0x00:
+        print('Error while card creates key')
+        print(hex(sw1), hex(sw2))
+    else: 
+        print('key generated sent')
+
     # cardExp,sw1,sw2 = getCardKeyExp(connection)
     # print("PubKey Exponent:",cardExp,sw1,sw2)
     # cardMod,sw1,sw2 = getCardKeyMod(connection)

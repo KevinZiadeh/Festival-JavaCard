@@ -26,7 +26,6 @@ public class SecWalletApp extends Applet {
     public static final byte READER_PUBKEY_EXP = (byte)0x51;
     public static final byte READER_PUBKEY = (byte)0x52;
     public static final byte SEND_CARD_PUBKEY = (byte)0x60; 
-    // public static final byte CARD_PUBKEY_EXP = (byte)0x61;
 
     /* ATTRIBUTES */
     OwnerPIN pin;
@@ -80,20 +79,8 @@ public class SecWalletApp extends Applet {
     private SecWalletApp(byte bArray[], short bOffset, byte bLength) {
     	// SIGNED_MSG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
     	// MSG_AND_SIG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
-    	// READER_KEY_MOD = new byte[128]; 
-        // READER_KEY_EXP = new byte[10];
-        // CARD_KEY_MOD = new byte [128];
-        // CARD_KEY_EXP = new byte[10];
-        // MSG = new byte[256];
-        
-        // signature = null;
-        // keyPair = null;
-        // privateKey = null;
-        // publicKey = null;
-        // reader_pubKey = null;
-        
+        // MSG = new byte[256];        
         // msgLen = 0;
-
 
         keyPair = new KeyPair(KeyPair.ALG_RSA_CRT, KeyBuilder.LENGTH_RSA_1024);
         keyPair.genKeyPair();
@@ -289,36 +276,25 @@ public class SecWalletApp extends Applet {
     
     public void getReaderKeyMod(APDU apdu) {
     	byte[] buffer = apdu.getBuffer();
-    	short bytesRead = 0;
-    	short readOffset = 0;
-    	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
-    	
-    	bytesRead = apdu.setIncomingAndReceive();
-    	
-    	while (bytesRead > 0) {
-    		Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_MOD, readOffset, bytesRead);
-    		readOffset += bytesRead;
-            bytesRead = apdu.receiveBytes(ISO7816.OFFSET_CDATA);
-    	}
+        short bytesRead = apdu.setIncomingAndReceive();
+        READER_KEY_MOD = new byte[128]; 
+        Util.arrayCopyNonAtomic(buffer, (short) ISO7816.OFFSET_CDATA, READER_KEY_MOD, (short) 0, bytesRead);
     }
     
     public void getReaderKeyExp(APDU apdu) {
-    	  byte[] buffer = apdu.getBuffer();
-    	  short numBytes = (short) buffer[ISO7816.OFFSET_LC];
-
-    	  apdu.setIncomingAndReceive();
-    	  Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, numBytes);
+        byte[] buffer = apdu.getBuffer();
+        short bytesRead = apdu.setIncomingAndReceive();
+    	READER_KEY_EXP = new byte[128]; 
+        Util.arrayCopyNonAtomic(buffer, (short) ISO7816.OFFSET_CDATA, READER_KEY_EXP, (short) 0, bytesRead);
     }
     
     public void constructReaderKey(APDU apdu) {
-    	byte[] buffer = apdu.getBuffer();
-  	  	short numBytes = (short) buffer[ISO7816.OFFSET_LC];
-  	  	
+        byte[] buffer = apdu.getBuffer();
+
   	  	reader_pubKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, KeyBuilder.LENGTH_RSA_1024, false);
-  	  	
   	  	try {
-  	  		reader_pubKey.setModulus(READER_KEY_MOD,(short) 0,(short) 128);
-  	  		reader_pubKey.setExponent(READER_KEY_EXP, (short) 0, (short) 4);	
+  	  		reader_pubKey.setModulus(READER_KEY_MOD,(short) 0,(short) READER_KEY_MOD.length);
+  	  		reader_pubKey.setExponent(READER_KEY_EXP, (short) 0, (short) READER_KEY_EXP.length);
   	  	} catch(CryptoException c) {
 	  	  	short reason = c.getReason();
 	  		ISOException.throwIt(reason);
