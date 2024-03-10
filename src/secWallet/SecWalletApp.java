@@ -1,7 +1,4 @@
 package secWallet;
-//import java.security.KeyPair;
-//import java.security.Signature;
-//import java.security.interfaces.RSAPublicKey;
 
 import javacard.framework.APDU;
 import javacard.framework.Applet; // https://docs.oracle.com/javacard/3.0.5/api/javacard/framework/Applet.html
@@ -24,6 +21,7 @@ public class SecWalletApp extends Applet {
     public static final byte INS_GET_BALANCE = (byte) 0x10;
     public static final byte INS_CREDIT = (byte)0x20;
     public static final byte INS_DEBIT = (byte)0x30;
+    public static final byte INS_GENERATE_CARD_KEYS = (byte)0x40;
     public static final byte READER_PUBKEY_MOD = (byte)0x50;
     public static final byte READER_PUBKEY_EXP = (byte)0x51;
     public static final byte READER_PUBKEY = (byte)0x52;
@@ -83,6 +81,8 @@ public class SecWalletApp extends Applet {
     	MSG_AND_SIG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
     	READER_KEY_MOD = new byte[128]; 
         READER_KEY_EXP = new byte[10];
+        CARD_KEY_MOD = new byte [128];
+        CARD_KEY_EXP = new byte[10];
         MSG = new byte[256];
         
         signature = null;
@@ -185,16 +185,24 @@ public class SecWalletApp extends Applet {
                 if (!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
                 getBalance(apdu);
                 break;
+            case INS_GENERATE_CARD_KEYS:
+            	generateCardKeys(apdu);
+            	break;
             case READER_PUBKEY_MOD:
             	getReaderKeyMod(apdu);
+            	break;
             case READER_PUBKEY_EXP:
             	getReaderKeyExp(apdu);
+            	break;
             case READER_PUBKEY: 
             	constructReaderKey(apdu);
+            	break;
             case CARD_PUBKEY_MOD:
             	sendCardPubKeyMod(apdu);
+            	break;
             case CARD_PUBKEY_EXP:
             	sendCardPubKeyExp(apdu);
+            	break;
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
                 break;
@@ -314,7 +322,8 @@ public class SecWalletApp extends Applet {
 	  	  	short reason = c.getReason();
 	  		ISOException.throwIt(reason);
   	  	}
-  	  	System.out.println("Card side, Reader Key: " + reader_pubKey.toString());
+  	  	
+//  	  	System.out.println("Card side, Reader Key: " + reader_pubKey.toString());
   	  
     }
     
@@ -329,13 +338,13 @@ public class SecWalletApp extends Applet {
     	
     	privateKey = (RSAPrivateCrtKey) keyPair.getPrivate();
     	
-    	System.out.println("Card side, Public Key: " + publicKey.toString());
-    	System.out.println("Card side, Private Key: " + privateKey.toString());
-    	  
+//    	System.out.println("Card side, Public Key: " + publicKey.toString());
+//    	System.out.println("Card side, Private Key: " + privateKey.toString());
+//    	  
     	//not too sure whether we need this part or not since we are creating other methods to send exp and mod
-//    	buffer[0] = (byte) pubKeyExp;
-//        buffer[1] = (byte) pubKeyMod;
-//        apdu.setOutgoingAndSend((short) 0, (short) 2);
+    	buffer[0] = (byte) pubKeyExp;
+        buffer[1] = (byte) pubKeyMod;
+        apdu.setOutgoingAndSend((short) 0, (short) 2);
     }
 //    
 //
@@ -398,7 +407,7 @@ public class SecWalletApp extends Applet {
     
     public boolean verifyMessage(short msgLen) {
     	signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
-  	  	signature.init((Key) reader_pubKey, Signature.MODE_VERIFY);
+  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
   	  	boolean verified = signature.verify(MSG_AND_SIG, (short) 0 , (byte) msgLen, MSG_AND_SIG, (byte) msgLen, (short) 128);
   	  	return verified;
     }
