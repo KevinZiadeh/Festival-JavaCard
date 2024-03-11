@@ -158,7 +158,6 @@ def main():
     valid = validate_pin(connection)
     
     data, sw1, sw2 = connection.transmit([CLA, 0x60, 0x00, 0x00, 0x00])
-    
     card_pub_mod_len = (data[0] << 8) + data[1]
     card_pub_mod = data[2:card_pub_mod_len+2]
     card_pub_exp_len =  (data[2 + card_pub_mod_len] << 8) + data[3 + card_pub_mod_len]
@@ -205,9 +204,24 @@ def main():
     else: 
         print('Message signing and card side verification: ' + str(data))
     
-    data, sw1, sw2 = connection.transmit([CLA, 0x80, 0x00, 0x00, len(signedMsg)] + msg_list)
-    print(data)
-
+    data, sw1, sw2 = connection.transmit([CLA, 0x80, 0x00, 0x00, 0x00])
+    message = data[:-128]
+    signature = data[-128:]
+    # print("Message" + str(message))
+    # print("Signature" + str(signature))
+    
+    #message is directly accessible so maybe do we want to encrypt
+    signatureVerified = verifySignature(message, signature)
+    if sw1 != 0x90 or  sw2 != 0x00:
+        print('Error while verifying signed message')
+        print(hex(sw1), hex(sw2))
+    else: 
+        if signatureVerified:
+            print('Signature verified successfully')
+        else:
+            print('Error when verifying message')
+        
+    # print(signatureVerified)
     
 if __name__ == '__main__':
     main()

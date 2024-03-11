@@ -51,7 +51,7 @@ public class SecWalletApp extends Applet {
     private static byte[] READER_KEY;
     private static byte[] CARD_KEY_MOD; 
     private static byte[] CARD_KEY_EXP;
-    private static byte[] MSG_TO_SEND  = {72,101,108,108,111};
+    private static byte[] MSG_TO_SEND; // = {72,101,108,108,111};
     private static byte[] MSG;
     // Signed message from card 
     private static byte[] SIGNED_MSG;
@@ -94,7 +94,7 @@ public class SecWalletApp extends Applet {
 
         signature = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
         verify = Signature.getInstance(Signature.ALG_RSA_SHA_PKCS1, false);
-        signature.init(privateKey, Signature.MODE_SIGN);
+//        signature.init(privateKey, Signature.MODE_SIGN);
     	
     	pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE); // Create User PIN
 
@@ -203,8 +203,8 @@ public class SecWalletApp extends Applet {
             	receiveAndVerify(apdu);
             	break;
             case SIGN_SEND_MSG:
-            	short len = (short) MSG.length;
-            	signAndSend(apdu, len);
+            	MSG_TO_SEND = new byte[] {72,101,108,108,111};
+            	signAndSend(apdu, MSG_TO_SEND);
             	break;
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -323,23 +323,24 @@ public class SecWalletApp extends Applet {
     }
     
     public short signMessage(byte[] message, short msgLen) {
+    	  signature.init(privateKey, Signature.MODE_SIGN);
     	  short sigLen = signature.sign(message, (short) 0, (byte) msgLen, SIGNED_MSG, (byte) 0);
     	  return sigLen;
     }
     
-    public void signAndSend(APDU apdu, short len) {
+    public void signAndSend(APDU apdu, byte[] message) {
     	byte[] buffer = apdu.getBuffer();
-    	short sigLen = signMessage(MSG_TO_SEND, len);
+    	short msgLen = (short) message.length;
     	
-    	//The signed message becomes the actual sent message
-//    	byte 
-    	Util.arrayCopyNonAtomic(SIGNED_MSG, (short) 0, MSG, (short)0, sigLen);
-//    	apdu.setOutgoingAndSend((short) 0, (short)(sigLen));
-//    	
-    	//Not too sure about the length here, because it is the length of the response data
+    	
+    	short sigLen = signMessage(message, msgLen);
+
+    	Util.arrayCopyNonAtomic(MSG_TO_SEND, (short) 0, MSG, (short)0, msgLen);
+    	Util.arrayCopyNonAtomic(SIGNED_MSG, (short) 0, MSG, (short)msgLen, sigLen);
+
     	apdu.setOutgoing();
-    	apdu.setOutgoingLength(sigLen);
-    	apdu.sendBytesLong(MSG,(short)0,sigLen); 
+    	apdu.setOutgoingLength((short)(msgLen + sigLen));
+    	apdu.sendBytesLong(MSG,(short)0,(short)(msgLen + sigLen)); 
     }
     
     public short receiveSigned(APDU apdu) {
