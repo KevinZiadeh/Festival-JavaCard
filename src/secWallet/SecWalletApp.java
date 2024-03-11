@@ -26,6 +26,9 @@ public class SecWalletApp extends Applet {
     public static final byte READER_PUBKEY_EXP = (byte)0x51;
     public static final byte READER_PUBKEY = (byte)0x52;
     public static final byte SEND_CARD_PUBKEY = (byte)0x60; 
+    public static final byte RECEIVE_VERIFY_SIGNED_MSG = (byte)0x70;
+    public static final byte SIGN_SEND_MSG = (byte)0x80;
+    
 
     /* ATTRIBUTES */
     OwnerPIN pin;
@@ -48,6 +51,7 @@ public class SecWalletApp extends Applet {
     private static byte[] READER_KEY;
     private static byte[] CARD_KEY_MOD; 
     private static byte[] CARD_KEY_EXP;
+    private static byte[] MSG_TO_SEND  = {72,101,108,108,111};
     private static byte[] MSG;
     // Signed message from card 
     private static byte[] SIGNED_MSG;
@@ -77,10 +81,11 @@ public class SecWalletApp extends Applet {
 
     /* Constructor */
     private SecWalletApp(byte bArray[], short bOffset, byte bLength) {
-    	// SIGNED_MSG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
-    	// MSG_AND_SIG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
-        // MSG = new byte[256];        
-        // msgLen = 0;
+    	 SIGNED_MSG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
+    	 MSG_AND_SIG = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
+//    	 String msg = "Testing send and sign card";
+    	 MSG = new byte[256];  
+         msgLen = 0;
 
         keyPair = new KeyPair(KeyPair.ALG_RSA_CRT, KeyBuilder.LENGTH_RSA_1024);
         keyPair.genKeyPair();
@@ -193,6 +198,13 @@ public class SecWalletApp extends Applet {
             	break;
             case SEND_CARD_PUBKEY:
             	sendCardPubKey(apdu);
+            	break;
+            case RECEIVE_VERIFY_SIGNED_MSG:
+            	receiveAndVerify(apdu);
+            	break;
+            case SIGN_SEND_MSG:
+            	short len = (short) MSG.length;
+            	signAndSend(apdu, len);
             	break;
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -315,17 +327,19 @@ public class SecWalletApp extends Applet {
     	  return sigLen;
     }
     
-    public void signAndSend(APDU apdu, short msgLen) {
+    public void signAndSend(APDU apdu, short len) {
     	byte[] buffer = apdu.getBuffer();
-    	short sigLen = signMessage(MSG, msgLen);
+    	short sigLen = signMessage(MSG_TO_SEND, len);
     	
     	//The signed message becomes the actual sent message
-    	Util.arrayCopyNonAtomic(SIGNED_MSG, (short) 0, MSG, msgLen, sigLen);
-    	
+//    	byte 
+    	Util.arrayCopyNonAtomic(SIGNED_MSG, (short) 0, MSG, (short)0, sigLen);
+//    	apdu.setOutgoingAndSend((short) 0, (short)(sigLen));
+//    	
     	//Not too sure about the length here, because it is the length of the response data
     	apdu.setOutgoing();
-    	//apdu.setOutgoingLength();
-    	//apdu.sendBytesLong(MSG,(short)0,); 
+    	apdu.setOutgoingLength(sigLen);
+    	apdu.sendBytesLong(MSG,(short)0,sigLen); 
     }
     
     public short receiveSigned(APDU apdu) {
@@ -349,10 +363,25 @@ public class SecWalletApp extends Applet {
     	return msgLen;
     }
     
-    public boolean verifyMessage(short msgLen) {
-  	  	verify.init(reader_pubKey, Signature.MODE_VERIFY);
+    public boolean verifySignature(short msgLen) {
+  	  	signature.init(reader_pubKey, Signature.MODE_VERIFY);
   	  	boolean verified = signature.verify(MSG_AND_SIG, (short) 0 , (byte) msgLen, MSG_AND_SIG, (byte) msgLen, (short) 128);
   	  	return verified;
+    }
+    
+    public void receiveAndVerify(APDU apdu) {
+    	byte[] buf = apdu.getBuffer();
+    	msgLen = receiveSigned(apdu);
+    	if (verifySignature(msgLen) == true) {
+          byte[] str = {'O', 'K'};
+          Util.arrayCopyNonAtomic(str, (short) 0, buf, (short) 0, (short)2);
+          apdu.setOutgoingAndSend((short) 0, (short) 2);               
+    	} else {
+          byte[] str = {'N', 'O'};
+          Util.arrayCopyNonAtomic(str, (short) 0, buf, (short) 0, (short)2);
+          apdu.setOutgoingAndSend((short) 0, (short) 2);
+                  
+    	}
     }
     
     

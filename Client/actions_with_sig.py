@@ -103,9 +103,7 @@ def getCardKeyExp(connection):
     return response, hex(sw1), hex(sw2)
 
 def constructCardKey(mod, exp):
-    n = mod
-    e = exp
-    card_pubKey = construct((n, e))
+    card_pubKey = construct((mod, exp))
     print("Reader side, Car Pubkey" + str(card_pubKey))
     return card_pubKey
 
@@ -130,7 +128,7 @@ def receiveSigned(connection, signedMsg):
     response, sw1, sw2 = connection.transmit([CLA, RECEIVE_SIGNED_MSG, P1, P2, Lc] + signedMsg)
     return response, hex(sw1), hex(sw2)
 
-def verifyMessage(message_list, signature):
+def verifySignature(message_list, signature):
     card_pubKey = RSA.importKey(open('card_pubKey.pem').read())
     message = bytes(message_list)
     hash = SHA.new(message)
@@ -162,14 +160,13 @@ def main():
     data, sw1, sw2 = connection.transmit([CLA, 0x60, 0x00, 0x00, 0x00])
     
     card_pub_mod_len = (data[0] << 8) + data[1]
-    card_pub_mod = data[2:card_pub_mod_len]
+    card_pub_mod = data[2:card_pub_mod_len+2]
     card_pub_exp_len =  (data[2 + card_pub_mod_len] << 8) + data[3 + card_pub_mod_len]
     card_pub_exp = data[4 + card_pub_mod_len:4 + card_pub_mod_len+card_pub_exp_len]
     card_pub_mod = int.from_bytes(bytes(card_pub_mod), 'big')
     card_pub_exp = int.from_bytes(bytes(card_pub_exp), 'big')
     
     cardPubKey = constructCardKey(card_pub_mod, card_pub_exp)
-    
     writeToFile = saveCardKey(cardPubKey)
     
     generateReaderKeys()
@@ -196,7 +193,23 @@ def main():
         print(hex(sw1), hex(sw2))
     else: 
         print('key generated sent')
+        
+    message = "Testing signature"
+    msg_list = [ord(x) for x in message]
+    signedMsg = signMessage(msg_list)
+    
+    data, sw1, sw2 = connection.transmit([CLA, 0x70, 0x00, 0x00, len(signedMsg)] + list(signedMsg))
+    if sw1 != 0x90 or  sw2 != 0x00:
+        print('Error while sending signed message')
+        print(hex(sw1), hex(sw2))
+    else: 
+        print('Message signing and card side verification: ' + str(data))
+    
+    data, sw1, sw2 = connection.transmit([CLA, 0x80, 0x00, 0x00, len(signedMsg)] + msg_list)
+    print(data)
 
     
 if __name__ == '__main__':
     main()
+    
+    
