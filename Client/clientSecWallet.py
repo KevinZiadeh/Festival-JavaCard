@@ -1,6 +1,6 @@
 import time
-from instructions import print_card_info, get_balance, transfer_credit, reimburse_credit, validate_pin, SELECT, AID
-from helpers import wait_for_card, wait_for_card_removed
+from instructions import print_card_info, get_balance, transfer_credit, reimburse_credit, validate_pin, key_exchange, debit_amount, SELECT, AID
+from helpers import wait_for_card, wait_for_card_removed, generateReaderKeys
 
 banner = """
 ==========================
@@ -45,6 +45,7 @@ def heartbeat(connection):
 
             
 def main():
+    reader_priv_key, reader_pub_key = generateReaderKeys()
     connection = None
     while True:
         print(welcome_message)
@@ -68,6 +69,10 @@ def main():
                 connection.disconnect()
                 time.sleep(1)
                 continue
+
+            card_pub_key = key_exchange(connection, reader_pub_key)
+            if not card_pub_key:
+                raise Exception("There was an error with your card. Please go to the nearest branch for assistance")
         
             print(banner)
             while True:
@@ -84,6 +89,12 @@ def main():
                     card_name, card_number = print_card_info(connection, card_name, card_number)
                 elif choice == "2":
                     get_balance(connection)
+                elif choice == "3":
+                    debit_amount(connection, 10, reader_priv_key, card_pub_key) 
+                elif choice == "4":
+                    debit_amount(connection, 20, reader_priv_key, card_pub_key)
+                elif choice == "5":
+                    debit_amount(connection, 50, reader_priv_key, card_pub_key)
                 elif choice == "6":
                     reset = transfer_credit(connection, card_number)
                     if reset:

@@ -1,6 +1,6 @@
 import time
-from smartcard.System import readers
-from helpers import encode_short, short_to_byte_array, prepareData, validate_status, wait_for_card_removed
+from helpers import encode_short, short_to_byte_array, prepareData, validate_status, wait_for_card_removed, signMessage, verifySignature
+from Crypto.PublicKey.RSA import construct
 
 SELECT = [0x00,0xA4,0x04,0x00,0x08]
 AID = [0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08]
@@ -11,7 +11,10 @@ UNBLOCK_INS = 0x02
 GET_BALANCE_INS = 0x10
 CREDIT_INS = 0x20
 DEBIT_INS = 0x30
-
+SEND_READER_PUBKEY_MOD = 0x50
+SEND_READER_PUBKEY_EXP = 0x51
+CREATE_CARD_READER_PUBKEY = 0x52
+GET_CARD_PUBKEY = 0x60
 
 def validate_pin(connection):
     while True:       
@@ -66,9 +69,91 @@ def get_balance(connection):
     data, sw1, sw2 = connection.transmit([CLA, GET_BALANCE_INS, 0x00, 0x00, 0x00, 0x02])
 
     if validate_status(sw1, sw2):    
-        balance = (data[0] << 8) + data[1]
+        # balance = (data[0] << 8) + data[1]
+        balance = int.from_bytes(bytes(data), 'big')
         print(f"Your balance is: {balance}")
         
+
+def key_exchange(connection, reader_pub_key):
+    data, sw1, sw2 = connection.transmit([CLA, GET_CARD_PUBKEY, 0x00, 0x00, 0x00])
+    card_pub_mod_len = int.from_bytes(bytes(data[0:2]), 'big')
+    card_pub_mod = data[2:card_pub_mod_len+2]
+    card_pub_exp_len = int.from_bytes(bytes(data[2 + card_pub_mod_len:4 + card_pub_mod_len]), 'big')
+    card_pub_exp = data[4 + card_pub_mod_len:4 + card_pub_mod_len+card_pub_exp_len]
+    card_pub_mod = int.from_bytes(bytes(card_pub_mod), 'big')
+    card_pub_exp = int.from_bytes(bytes(card_pub_exp), 'big')
+   
+    card_pubKey = construct((card_pub_mod, card_pub_exp))
+   
+    n = list(reader_pub_key.n.to_bytes(128,byteorder='big'))
+    e = list(reader_pub_key.e.to_bytes(128,byteorder='big'))
+
+    data, sw1, sw2 = connection.transmit([CLA, SEND_READER_PUBKEY_MOD, 0x00, 0x00, len(n)] + n)
+    if not validate_status(sw1, sw2):
+        print('Error while transmitting modulus')
+        print(hex(sw1), hex(sw2))
+        return False
+    data, sw1, sw2 = connection.transmit([CLA, SEND_READER_PUBKEY_EXP, 0x00, 0x00, len(n)] + e)
+    if not validate_status(sw1, sw2):
+        print('Error while transmitting exponent')
+        print(hex(sw1), hex(sw2))
+        return False
+    data, sw1, sw2 = connection.transmit([CLA, CREATE_CARD_READER_PUBKEY, 0x00, 0x00])
+    if not validate_status(sw1, sw2):
+        print('Error while card creates key')
+        print(hex(sw1), hex(sw2))
+        return False
+
+    return card_pubKey
+
+def debit_amount(connection, amount, priv_key, pub_key):
+    encoded_amount = short_to_byte_array(encode_short(amount))
+    signature = signMessage(encoded_amount, priv_key)
+    message = encoded_amount + signature
+    data, sw1, sw2 = connection.transmit([CLA, DEBIT_INS, 0x00, 0x00, len(message)] + message)
+    
+    value = int.from_bytes(bytes(data), 'big')
+    if not validate_status(sw1, sw2):
+        return False
+
+    data, signature = data[:2], data[2:]
+    received_value = int.from_bytes(bytes(data), 'big')
+    if received_value != amount:
+        print("There was an error with your card. Please go to the nearest branch for assistance")
+        return False
+    elif verifySignature(data, signature, pub_key):
+        get_balance(connection)
+        print("Transaction successful. Don't forget take your receipt and card.")
+        return True
+    else:
+        print("Transaction failed. Please go to the nearest branch for assistance")
+        return False
+
+def credit_amount(connection, amount, priv_key, pub_key):
+    encoded_amount = short_to_byte_array(encode_short(amount))
+    signature = signMessage(encoded_amount, priv_key)
+    message = encoded_amount + signature
+    data, sw1, sw2 = connection.transmit([CLA, CREDIT_INS, 0x00, 0x00, len(message)] + message)
+    
+    value = int.from_bytes(bytes(data), 'big')
+    if not validate_status(sw1, sw2):
+        return False
+
+    data, signature = data[:2], data[2:]
+    received_value = int.from_bytes(bytes(data), 'big')
+
+    if received_value != amount:
+        print(received_value, amount, type(received_value), type(amount))
+        print("There was an error with your card. Please go to the nearest branch for assistance")
+        return False
+    elif verifySignature(data, signature, pub_key):
+        get_balance(connection)
+        print("Transaction successful.")
+        return True
+    else:
+        print(verifySignature(data, signature, pub_key))
+        print("Transaction failed. Please go to the nearest branch for assistance")
+        return False
 
 def transfer_credit(connection, card_num):
     amount = input("Enter the amount you want to transfer: ")

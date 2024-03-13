@@ -1,5 +1,5 @@
-from instructions import print_card_info, get_balance, validate_pin, SELECT, AID, CLA, CREDIT_INS
-from helpers import wait_for_card, short_to_byte_array, encode_short, validate_status
+from instructions import print_card_info, get_balance, validate_pin, credit_amount, key_exchange, SELECT, AID
+from helpers import wait_for_card, generateReaderKeys
 
 
 welcome_message = """
@@ -11,6 +11,7 @@ welcome_message = """
 Insert Card..."""
 
 def main():
+    reader_priv_key, reader_pub_key = generateReaderKeys()
     connection = None
     print(welcome_message)
     try:
@@ -29,6 +30,11 @@ def main():
             raise Exception("There was an error with your card. Please go to the nearest branch for assistance")
         
         validate_pin(connection)
+
+        card_pub_key = key_exchange(connection, reader_pub_key)
+
+        if not card_pub_key:
+            raise Exception("There was an error with your card. Please go to the nearest branch for assistance")
         
         get_balance(connection)
         
@@ -36,17 +42,9 @@ def main():
         if not add_amount.isdigit() or int(add_amount) <= 0 or int(add_amount) > 500:
             print("Invalid amount. A valid amount should be a positive integer and at most 500")
             return
-        
-        add_amount_encoded = short_to_byte_array(encode_short(add_amount))
-        data, sw1, sw2 = connection.transmit([CLA, CREDIT_INS, 0x00, 0x00, 0x02] + add_amount_encoded)
-        if not validate_status(sw1, sw2):
-            return
-        elif "".join([chr(i) for i in data]) != "OK": # When we debit or credit, we validate the status and check the response
-            print("There was an error adding money to your card. Please try again")
-        else:
-            get_balance(connection)
-            
-        
+
+        credit_amount(connection, int(add_amount), reader_priv_key, card_pub_key)
+
     except Exception as e:
         print("Exception")
         print(e)    

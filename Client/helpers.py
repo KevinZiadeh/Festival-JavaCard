@@ -1,5 +1,8 @@
 import time
 from smartcard.System import readers
+from Crypto.PublicKey import RSA
+from Crypto.Hash import SHA
+from Crypto.Signature import pkcs1_15
 
 def encode_short(data):
     return int(data).to_bytes(2, byteorder="big").hex()
@@ -54,8 +57,49 @@ def validate_status(sw1, sw2):
         print("You cannot deposit more than 500, or less than 0, at a time.")
     elif(sw1 == 0x64 and sw2 == 0x03):
         print("You cannot debit more than 200, or less than 0, at a time.")
+    elif(sw1 == 0x94 and sw2 == 0x84):
+        print("Signature verification failed. Please try again.")
     elif(sw1 == 0x90 and sw2 == 0x00):
         status = True
 
     return status
 
+
+def generateReaderKeys():
+    privateKey = RSA.generate(1024)
+    with open('reader_privKey.pem', 'wb') as file:
+        file.write(privateKey.exportKey())
+        
+    publicKey = privateKey.publickey()
+    with open('reader_pubKey.pem', 'wb') as file:
+        file.write(publicKey.exportKey())
+
+    return privateKey, publicKey
+        
+# Not used
+def retrieveReaderKeys(): 
+    with open('reader_privKey.pem', 'rb') as file:
+        reader_privKey = RSA.importKey(file.read())
+        
+    with open('reader_pubKey.pem', 'rb') as file: 
+        reader_pubKey = RSA.importKey(file.read())
+
+    print(reader_privKey)
+        
+    return reader_privKey, reader_pubKey
+
+
+def signMessage(message, key):
+    hash = SHA.new(bytes(message))
+    signature = pkcs1_15.new(key).sign(hash)
+    return list(signature)
+
+def verifySignature(message, signature, key):
+    message = bytes(message)
+    hash = SHA.new(message)
+    signature = bytes(signature)
+    try:
+        pkcs1_15.new(key).verify(hash, signature)
+        return True
+    except (ValueError, TypeError):
+        return False
