@@ -120,9 +120,19 @@ public class SecWalletApp extends Applet {
         }
     }
 
-    private void unblockCard() {
+    private void unblockCard(APDU apdu) {
         if (pin.getTriesRemaining() != 0) {
             ISOException.throwIt(SW_UNBLOCK_NON_BLOCKED_CARD);
+        }
+
+        byte[] buffer = apdu.getBuffer();
+        apdu.setIncomingAndReceive();
+        byte[] secret = { 'K', 'e', 'v', 'i', 'n' };
+
+        byte unblock = Util.arrayCompare(buffer, (short) ISO7816.OFFSET_CDATA, secret, (short) 0, (short) 5);
+
+        if (unblock != 0) {
+            ISOException.throwIt(SW_VERIFICATION_FAILED);
         }
 
         pin.resetAndUnblock();
@@ -146,7 +156,7 @@ public class SecWalletApp extends Applet {
                 verifyPin(apdu);
                 break;
             case INS_UNBLOCK_CARD:
-                unblockCard();
+                unblockCard(apdu);
                 break;
             case INS_DEBIT:
                 if (!pin.isValidated())

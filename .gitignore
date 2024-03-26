@@ -3,3 +3,4 @@ Client/.project
 Client/.pydevproject
 Client/__pycache__/
 bin/
+*.pem

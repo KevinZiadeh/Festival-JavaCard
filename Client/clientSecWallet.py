@@ -90,22 +90,26 @@ def main():
                 elif choice == "2":
                     get_balance(connection)
                 elif choice == "3":
-                    debit_amount(connection, 10, reader_priv_key, card_pub_key) 
+                    if debit_amount(connection, 10, reader_priv_key, card_pub_key):
+                        print("Transaction successful. Don't forget take your receipt and card.")
                 elif choice == "4":
-                    debit_amount(connection, 20, reader_priv_key, card_pub_key)
+                    if debit_amount(connection, 20, reader_priv_key, card_pub_key):
+                        print("Transaction successful. Don't forget take your receipt and card.")
                 elif choice == "5":
-                    debit_amount(connection, 50, reader_priv_key, card_pub_key)
+                    if debit_amount(connection, 50, reader_priv_key, card_pub_key):
+                        print("Transaction successful. Don't forget take your receipt and card.")
                 elif choice == "6":
-                    reset = transfer_credit(connection, card_number)
+                    reset = transfer_credit(connection, card_number, reader_pub_key, reader_priv_key, card_pub_key)
                     if reset:
                         connection.disconnect()
                         break
                 elif choice == "7":
-                    reimburse_credit(connection, card_number)
+                    reimburse_credit(connection, card_number, reader_priv_key, card_pub_key)
                 elif choice == "9":
                     print("\nPlease remove your card")
                     wait_for_card_removed(connection)
                     print(ending_message)
+                    time.sleep(1)
                     break
                 else:
                     print("Invalid Choice")
@@ -123,6 +127,7 @@ def main():
             break
         
     print(ending_message)
+    time.sleep(1)
 
 if __name__ == "__main__":
     main()

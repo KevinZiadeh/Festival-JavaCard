@@ -123,7 +123,6 @@ def debit_amount(connection, amount, priv_key, pub_key):
         return False
     elif verifySignature(data, signature, pub_key):
         get_balance(connection)
-        print("Transaction successful. Don't forget take your receipt and card.")
         return True
     else:
         print("Transaction failed. Please go to the nearest branch for assistance")
@@ -155,14 +154,15 @@ def credit_amount(connection, amount, priv_key, pub_key):
         print("Transaction failed. Please go to the nearest branch for assistance")
         return False
 
-def transfer_credit(connection, card_num):
+def transfer_credit(connection, card_num, reader_pub_key, priv_key, pub_key):
     amount = input("Enter the amount you want to transfer: ")
-    encoded_amount = short_to_byte_array(encode_short(amount))
-    data, sw1, sw2 = connection.transmit([CLA, DEBIT_INS, 0x00, 0x00, 0x02] + encoded_amount)
-    if not validate_status(sw1, sw2):
+    if not amount.isdigit():
+        print("Invalid amount. Please enter a valid amount")
         return False
-    elif "".join([chr(i) for i in data]) != "OK": # When we debit or credit, we validate the status and check the response
-        print("There was an error adding money to your card. Please try again")
+
+    debit = debit_amount(connection, int(amount), priv_key, pub_key)
+    if not debit:
+        print("There was an error while transferring money. Please try again")
         return False
     with open("reimbursement.txt", "a") as f:
         f.write(f"{card_num} {amount}\n")
@@ -200,8 +200,13 @@ inserted into the reader within
      
         validate_pin(connection)
                 
-        data, sw1, sw2 = connection.transmit([CLA, CREDIT_INS, 0x00, 0x00, 0x02] + encoded_amount)
-        if not validate_status(sw1, sw2):
+        pub_key = key_exchange(connection, reader_pub_key)
+        if not pub_key:
+            print("There was an error with your card. Please go to the nearest branch for assistance")
+            return True
+        
+        credit = credit_amount(connection, int(amount), priv_key, pub_key)
+        if not credit:
             print("Transfer unsuccessful. Select the reimbursement option to get your money back.")
             return True
 
@@ -224,7 +229,7 @@ inserted into the reader within
         return True
         
     
-def reimburse_credit(connection, card_num):
+def reimburse_credit(connection, card_num, priv_key, pub_key):
     try:
         with open("reimbursement.txt", "r") as f:
             content = f.read()
@@ -235,11 +240,10 @@ def reimburse_credit(connection, card_num):
                     if proceed.lower() == "n":
                         return
                     
-                    data, sw1, sw2 = connection.transmit([CLA, CREDIT_INS, 0x00, 0x00, 0x02] + short_to_byte_array(encode_short(line.split()[1])))
-                    if not validate_status(sw1, sw2):
-                        return
-                    elif "".join([chr(i) for i in data]) != "OK": # When we debit or credit, we validate the status and check the response
-                        print("There was an error adding money to your card. Please try again")
+                    amount = int(line.split()[1])
+                    credit = credit_amount(connection, amount, priv_key, pub_key)
+                    if not credit:
+                        print("Reimbursement unsuccessful. Please try again.")
                         return
                     else:
                         print("Reimbursement successful.")

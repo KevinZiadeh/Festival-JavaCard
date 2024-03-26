@@ -1,5 +1,5 @@
 from instructions import SELECT, AID, CLA, UNBLOCK_INS
-from helpers import wait_for_card, validate_status
+from helpers import wait_for_card, validate_status, encode_bytes
 
 
 welcome_message = """
@@ -27,7 +27,8 @@ def main():
         if validate.lower() == "n":
             return
         
-        _, sw1, sw2 = connection.transmit([CLA, UNBLOCK_INS, 0x00, 0x00, 0x00])
+        secret = "Kevin"
+        _, sw1, sw2 = connection.transmit([CLA, UNBLOCK_INS, 0x00, 0x00, 0x00] + list(map(ord, secret)))
         if validate_status(sw1, sw2):
             print("Card unblocked successfully")
         
